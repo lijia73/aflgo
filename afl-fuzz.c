@@ -4667,6 +4667,8 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* in_buf, u8* out_buf, u32 len) {
 
   }
 
+  OKF("Start statistic 1");
+
   double prev_distance = queue_cur->distance;
 
   write_to_testcase(out_buf, len);
@@ -4676,7 +4678,7 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* in_buf, u8* out_buf, u32 len) {
   u64* total_distance = (u64*) (trace_bits + MAP_SIZE);
   u64* total_count = (u64*) (trace_bits + MAP_SIZE + 8);
 
-  OKF("Start statistic");
+  OKF("Start statistic 2");
 
   if (*total_count > 0)
     cur_distance = (double) (*total_distance) / (double) (*total_count);
