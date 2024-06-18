@@ -4686,13 +4686,8 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* in_buf, u8* out_buf, u32 len) {
     cur_distance = -1.0;
 
   OKF("%lf %lf",prev_distance,cur_distance);
-  FILE *statistics_fp = fopen("/tmp/distance.txt", "w");
-  fwrite(&prev_distance, sizeof(double), 1, statistics_fp);
-  char space = ' ';
-  fwrite(&space, sizeof(char), 1, statistics_fp);
-  fwrite(&cur_distance, sizeof(double), 1, statistics_fp);
-  char newline = '\n';
-  fwrite(&newline, sizeof(char), 1, statistics_fp);
+  FILE *statistics_fp = fopen("/tmp/distance.txt", "a+");
+  fprintf(statistics_fp, "%lf %lf\n", prev_distance,cur_distance);
 
   fclose(statistics_fp);
 
