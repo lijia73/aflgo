@@ -4656,7 +4656,7 @@ abort_trimming:
    error conditions, returning 1 if it's time to bail out. This is
    a helper function for fuzz_one(). */
 
-EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
+EXP_ST u8 common_fuzz_stuff(char** argv, u8* in_buf, u8* out_buf, u32 len) {
 
   u8 fault;
 
@@ -4667,9 +4667,30 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
 
   }
 
+  double prev_distance = queue_cur->distance;
+
   write_to_testcase(out_buf, len);
 
   fault = run_target(argv, exec_tmout);
+
+  u64* total_distance = (u64*) (trace_bits + MAP_SIZE);
+  u64* total_count = (u64*) (trace_bits + MAP_SIZE + 8);
+
+  if (*total_count > 0)
+    cur_distance = (double) (*total_distance) / (double) (*total_count);
+  else
+    cur_distance = -1.0;
+
+  
+  FILE *statistics_fp = fopen("/distance.txt", "w");
+  fwrite(&prev_distance, sizeof(double), 1, statistics_fp);
+  char space = ' ';
+  fwrite(&space, sizeof(char), 1, statistics_fp);
+  fwrite(&cur_distance, sizeof(double), 1, statistics_fp);
+  char newline = '\n';
+  fwrite(&newline, sizeof(char), 1, statistics_fp);
+
+  fclose(statistics_fp);
 
   if (stop_soon) return 1;
 
@@ -5246,7 +5267,7 @@ static u8 fuzz_one(char** argv) {
 
     FLIP_BIT(out_buf, stage_cur);
 
-    if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+    if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
 
     FLIP_BIT(out_buf, stage_cur);
 
@@ -5339,7 +5360,7 @@ static u8 fuzz_one(char** argv) {
     FLIP_BIT(out_buf, stage_cur);
     FLIP_BIT(out_buf, stage_cur + 1);
 
-    if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+    if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
 
     FLIP_BIT(out_buf, stage_cur);
     FLIP_BIT(out_buf, stage_cur + 1);
@@ -5368,7 +5389,7 @@ static u8 fuzz_one(char** argv) {
     FLIP_BIT(out_buf, stage_cur + 2);
     FLIP_BIT(out_buf, stage_cur + 3);
 
-    if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+    if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
 
     FLIP_BIT(out_buf, stage_cur);
     FLIP_BIT(out_buf, stage_cur + 1);
@@ -5420,7 +5441,7 @@ static u8 fuzz_one(char** argv) {
 
     out_buf[stage_cur] ^= 0xFF;
 
-    if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+    if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
 
     /* We also use this stage to pull off a simple trick: we identify
        bytes that seem to have no effect on the current execution path
@@ -5498,7 +5519,7 @@ static u8 fuzz_one(char** argv) {
 
     *(u16*)(out_buf + i) ^= 0xFFFF;
 
-    if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+    if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
     stage_cur++;
 
     *(u16*)(out_buf + i) ^= 0xFFFF;
@@ -5535,7 +5556,7 @@ static u8 fuzz_one(char** argv) {
 
     *(u32*)(out_buf + i) ^= 0xFFFFFFFF;
 
-    if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+    if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
     stage_cur++;
 
     *(u32*)(out_buf + i) ^= 0xFFFFFFFF;
@@ -5591,7 +5612,7 @@ skip_bitflip:
         stage_cur_val = j;
         out_buf[i] = orig + j;
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5603,7 +5624,7 @@ skip_bitflip:
         stage_cur_val = -j;
         out_buf[i] = orig - j;
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5662,7 +5683,7 @@ skip_bitflip:
         stage_cur_val = j;
         *(u16*)(out_buf + i) = orig + j;
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
  
       } else stage_max--;
@@ -5672,7 +5693,7 @@ skip_bitflip:
         stage_cur_val = -j;
         *(u16*)(out_buf + i) = orig - j;
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5687,7 +5708,7 @@ skip_bitflip:
         stage_cur_val = j;
         *(u16*)(out_buf + i) = SWAP16(SWAP16(orig) + j);
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5697,7 +5718,7 @@ skip_bitflip:
         stage_cur_val = -j;
         *(u16*)(out_buf + i) = SWAP16(SWAP16(orig) - j);
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5755,7 +5776,7 @@ skip_bitflip:
         stage_cur_val = j;
         *(u32*)(out_buf + i) = orig + j;
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5765,7 +5786,7 @@ skip_bitflip:
         stage_cur_val = -j;
         *(u32*)(out_buf + i) = orig - j;
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5779,7 +5800,7 @@ skip_bitflip:
         stage_cur_val = j;
         *(u32*)(out_buf + i) = SWAP32(SWAP32(orig) + j);
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5789,7 +5810,7 @@ skip_bitflip:
         stage_cur_val = -j;
         *(u32*)(out_buf + i) = SWAP32(SWAP32(orig) - j);
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5848,7 +5869,7 @@ skip_arith:
       stage_cur_val = interesting_8[j];
       out_buf[i] = interesting_8[j];
 
-      if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+      if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
 
       out_buf[i] = orig;
       stage_cur++;
@@ -5901,7 +5922,7 @@ skip_arith:
 
         *(u16*)(out_buf + i) = interesting_16[j];
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5914,7 +5935,7 @@ skip_arith:
         stage_val_type = STAGE_VAL_BE;
 
         *(u16*)(out_buf + i) = SWAP16(interesting_16[j]);
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5970,7 +5991,7 @@ skip_arith:
 
         *(u32*)(out_buf + i) = interesting_32[j];
 
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -5983,7 +6004,7 @@ skip_arith:
         stage_val_type = STAGE_VAL_BE;
 
         *(u32*)(out_buf + i) = SWAP32(interesting_32[j]);
-        if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+        if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
         stage_cur++;
 
       } else stage_max--;
@@ -6049,7 +6070,7 @@ skip_interest:
       last_len = extras[j].len;
       memcpy(out_buf + i, extras[j].data, last_len);
 
-      if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+      if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
 
       stage_cur++;
 
@@ -6093,7 +6114,7 @@ skip_interest:
       /* Copy tail */
       memcpy(ex_tmp + i + extras[j].len, out_buf + i, len - i);
 
-      if (common_fuzz_stuff(argv, ex_tmp, len + extras[j].len)) {
+      if (common_fuzz_stuff(argv, in_buf, ex_tmp, len + extras[j].len)) {
         ck_free(ex_tmp);
         goto abandon_entry;
       }
@@ -6149,7 +6170,7 @@ skip_user_extras:
       last_len = a_extras[j].len;
       memcpy(out_buf + i, a_extras[j].data, last_len);
 
-      if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+      if (common_fuzz_stuff(argv, in_buf, out_buf, len)) goto abandon_entry;
 
       stage_cur++;
 
@@ -6595,7 +6616,7 @@ havoc_stage:
 
     }
 
-    if (common_fuzz_stuff(argv, out_buf, temp_len))
+    if (common_fuzz_stuff(argv,in_buf, out_buf, temp_len))
       goto abandon_entry;
 
     /* out_buf might have been mangled a bit, so let's restore it to its
